@@ -7,6 +7,39 @@ use Cell;
 use Storable qw(dclone);
 use Data::Dumper;
 
+=head1 new
+
+  Constructor for board object.
+
+  Boards consist of 9 block objects, ordered left to right and top to bottom by value 1 - 9.
+      1 2 3
+      4 5 6
+      7 8 9
+
+  Each block consists of 9 cell objects, ordered in the same way inside blocks, as blocks are inside the board.
+
+  A board is initialized by passing in an array ref of board values.
+
+  There is a bit of trickiness in specifying the values for the initial board:
+    1. Values are specified block by block, not by row or columns.
+    2. Empty cells are specificied with a value of 0 (since this is invalid in sudoku and it is easier to seen that ommiting a value).
+    A block of  3 6     would be passed in as 3,6,0,0,0,9,7,4,5,
+                    9
+                7 4 5
+
+  Example:
+  my $board = Board->new([0,1,0,0,0,0,4,6,0,
+                          3,6,8,0,1,0,0,7,0,
+                          4,0,0,6,0,9,0,5,3,
+                          0,4,6,1,0,0,0,2,5,
+                          1,5,0,0,2,0,0,8,3,
+                          9,3,0,0,0,8,7,1,0,
+                          2,8,0,7,0,3,0,0,1,
+                          0,9,0,0,4,0,7,3,2,
+                          0,7,1,0,0,0,0,4,0,]);
+
+=cut
+
 sub new {
   my ($class, $values) = @_;
   unshift @$values, 'fencepost';
@@ -26,10 +59,28 @@ sub new {
   return bless $self, $class;
 }
 
+=head1 clone
+
+  Simple method to clone our board object.
+
+  Essential in the guessing process.
+
+  my $clone = $board->clone;
+
+=cut
+
 sub clone {
   my $self = shift;
   return dclone($self);
 }
+
+=head1 display
+
+  Method to pretty print out board.
+
+  $board->display;
+
+=cut
 
 sub display {
   my $self = shift;
@@ -39,7 +90,17 @@ sub display {
     $self->print_out($row_values);
     print "-" x 36 . "\n" if ($row == 3 or $row == 6 or $row == 9);
   }
-}  
+} 
+
+=head1 print_out
+
+  Used by our display method.
+
+  Gets the row values and prints them out.
+
+  $board->print_out($row_values);
+
+=cut 
 
 sub print_out {
   my ($self, $row_values) = @_;
@@ -53,6 +114,14 @@ sub print_out {
   }
   print "\n";
 }
+
+=head1 get_row_values
+
+  Helper method for board display.
+
+  my $rows = $board->get_row_values;
+
+=cut
 
 sub get_row_values {
   my ($self, $row) = @_;
@@ -86,6 +155,15 @@ sub get_row_values {
   return $row_values;
 }
 
+=head1 shuffle_down_options
+
+  Method that sifts down through our option removal methods,
+  and exits when it has run through once without making any changes.
+
+  $board->shuffle_down_options;
+
+=cut
+
 sub shuffle_down_options {
   my $self = shift;
   
@@ -99,6 +177,17 @@ sub shuffle_down_options {
     }
   }
 }
+
+=head1 solve
+
+  Our main control method.
+
+  Solves as much as it can deterministically, and then
+  attempts to guess.
+
+  $board->solve;
+
+=cut
 
 sub solve {
   my $self = shift;
@@ -120,6 +209,15 @@ sub solve {
   }
 }
 
+=head1 deterministic_solve
+
+  Control method for our 'deterministic' solve methods.
+  This is always tried before any guessing.
+
+  $board->deterministic_solve();
+
+=cut
+
 sub deterministic_solve {
   my $self = shift;
 
@@ -133,6 +231,28 @@ sub deterministic_solve {
     }
   }
 }
+
+=head1 test_guess
+
+  The meat out the guessing process.
+
+  Creates a clone of our board, and the sets the value for our guess.
+  From there it wil try to solve the board deterministically.
+  If this fails to solve the board, we will launch into another round of guessing.
+  This is depth-first recursion, and possibly a source of our slowness in some guessing cases.
+
+  To invoke, we must pass in block number, cell_number, and the value for the cell.
+  If we want to guess a value of 4 in block 1, cell 2:
+  
+  $board->test_guess(1,2,4);
+
+  This returns a boolean value: 1 for a guess that lead to a solve, 0 for failure.
+
+  if ($board->test_guess(1,2,4) {
+    $cell->set_value(4);
+  }
+
+=cut
 
 sub test_guess {
   my ($self, $block, $cell_number, $value) = @_;
@@ -153,6 +273,20 @@ sub test_guess {
   return $clone->guess_solve;
 }
 
+=head1 test_choices 
+
+  Method that 'tries out' our choices.
+
+  Processes the list of choices given to it from check_for_options.
+  In order to make 'guesses' work, we launch a test_guess method, that
+  clones our board object and tries to solve with the guessed value.
+  If this process succeeds, we return and set the guessed value in
+  our real board.
+
+  $board->test_choices($options);
+
+=cut
+
 sub test_choices {
   my ($self, $choices) = @_;
  
@@ -169,6 +303,17 @@ sub test_choices {
     }
   }
 }
+
+=head1 guess_solve
+
+  Method that controls our 'guessing' phase.
+
+  Tries to solve the puzzle deterministically first.
+  Then will get all possible options, and launches the guessing.
+
+  $board->guess_solve;
+
+=cut
   
 
 sub guess_solve {
@@ -197,6 +342,17 @@ sub guess_solve {
   } 
 }
 
+=head1 check_for_options
+
+  Helper method that will return a hashref laid out as $choices->{block_num}{cell_num}{option_num};
+
+  Pass in the number of options you want a cell to have (i.e. 2);
+  Used in our 'guessing' phase. We generally will only guess on cells that have only 2 options left.
+
+  my $choices = $board->check_for_options(2);
+
+=cut
+
 sub check_for_options {
   my ($self, $number) = @_;
 
@@ -216,6 +372,17 @@ sub check_for_options {
   }
   return $choices;
 }
+
+=head1 is_solved
+
+  Our method that allows us to check if our board is solved.
+
+  if ($board->is_solved) {
+    print "WIN\n";
+    exit;
+  }
+
+=cut
 
 sub is_solved {
   my $self = shift;
@@ -254,6 +421,16 @@ sub is_solved {
   }
   return 1;
 }
+
+=head1 is_impossible
+
+  Method used during the 'guessing' phase of solve, that lets us know if
+  we have run into an 'impossible' board, which is really just a board with
+  a dupe in a row. Currently I'm not sure where this duping happens...
+
+  die "Uh oh!\n" if ($board->is_impossible);
+
+=cut
 
 sub is_impossible {
   my $self = shift;
@@ -299,6 +476,18 @@ sub is_impossible {
   return 0;
 }
 
+=head1 remove_board_block_options
+
+  Method that goes block by block, and removes from options from cells without values, based
+  on the values set on other cells in the block.
+
+  $board->remove_board_block_options;
+
+  This method is usually called in conjunction with remove_board_row_options
+  and remove_board_column_options.
+
+=cut
+
 sub remove_board_block_options {
   my $self = shift;
   my $removals = 0;
@@ -309,6 +498,21 @@ sub remove_board_block_options {
   }
   return $removals;
 }
+
+=head1 remove_board_row_options
+
+  Method that will go row by row and remove an option from a cell,
+  if another cell in the row has that value.
+
+  Called in void context:
+  $board->remove_board_row_options;
+
+  You can also receive the number of removals back.
+  This way, we can loop over this method until we are know we are no longer removing anything.
+
+  my $removals = $board->remove_board_row_options;
+
+=cut
 
 sub remove_board_row_options {
   my $self = shift;
@@ -361,6 +565,22 @@ sub remove_board_row_options {
   return $removals;
 }
 
+=head1 remove_board_column_options
+
+  Method that will go column by column and remove an option from a cell,
+  if another cell in the column has that value.
+
+  Called in void context:
+  $board->remove_board_column_options;
+
+  You can also receive the number of removals back.
+  This way, we can loop over this method until we are know we are no longer removing anything.
+
+  my $removals = $board->remove_board_column_options;
+
+=cut
+  
+
 sub remove_board_column_options {
   my $self = shift;
   my $removals = 0;
@@ -385,6 +605,14 @@ sub remove_board_column_options {
   }
   return $removals;
 } 
+
+=head1 get_column_cells
+
+  Returns the cells, unordered, for a given column
+
+  my $column_cells = $board->get_column_cells(1);
+
+=cut
 
 sub get_column_cells {
   my ($self, $column) = @_;
@@ -418,6 +646,14 @@ sub get_column_cells {
   return $return;
 }
 
+=head1 get_row_cells
+
+  Returns all of the cells, unordered, for a given row number;
+
+  my $row_cells = $board->get_row_cells(3);
+
+=cut
+
 sub get_row_cells {
   my ($self, $row) = @_;
 
@@ -450,6 +686,18 @@ sub get_row_cells {
   return $return;
 }
 
+=head1 fill_in_options
+
+  Method that goes through each block (since these are the easiest to iterate over 
+  in our model) and if a cell has no value, and only one option, the cell must
+  have the option value.
+
+  One of our more frequently called solve routines.
+
+  $board->fill_in_options;
+
+=cut
+
 sub fill_in_options {
   my $self = shift;
 
@@ -469,6 +717,19 @@ sub fill_in_options {
     }
   }
 }
+
+=head1 fill_only_possible
+
+  A method that will go through by row, by column, and by block.
+
+  In any of these items, if there is only ONE cell with a possible value,
+  that cell must have that value.
+  
+  Called frequently in conjunction with fill_in_options.
+
+  $board->fill_only_possible();
+
+=cut
 
 sub fill_only_possible {
   my $self = shift;
