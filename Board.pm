@@ -262,8 +262,8 @@ sub test_guess {
   my $clone = $self->clone();
   my $cell = $clone->{$block}{$cell_number};
   $cell->set_value($value);
-  $clone->display;
   return if ($clone->is_impossible);
+  $clone->display;
 
   $clone->deterministic_solve;
   if ($clone->is_solved) {
@@ -767,8 +767,8 @@ sub fill_in_options {
             $value = $_;
           }
           $cell->set_value($value);
+          $self->deterministic_solve;
           $changes++;
-          $self->shuffle_down_options;
         }
       }
     }
@@ -817,7 +817,6 @@ sub fill_only_possible {
           my $cell = $column_option->{$value};
           $cell->set_value($value);
           $changes++;
-          $self->shuffle_down_options;
         }
       }
     }
@@ -845,7 +844,6 @@ sub fill_only_possible {
           my $cell = $block_option->{$value};
           $cell->set_value($value);
           $changes++;
-          $self->shuffle_down_options;
         }
       }
     } 
@@ -873,7 +871,6 @@ sub fill_only_possible {
           my $cell = $row_option->{$value};
           $cell->set_value($value);
           $changes++;
-          $self->shuffle_down_options;
         }
       }
     }
