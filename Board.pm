@@ -221,7 +221,7 @@ sub solve {
 sub deterministic_solve {
   my $self = shift;
 
-  for (1 .. 5) {
+  for (1 .. 10) {
     $self->fill_in_options;
     $self->shuffle_down_options;
     $self->fill_only_possible;
@@ -263,9 +263,8 @@ sub test_guess {
   my $cell = $clone->{$block}{$cell_number};
   $cell->set_value($value);
   $clone->display;
-  if ($clone->is_impossible) {
-    return;
-  }
+  return if ($clone->is_impossible);
+
   $clone->deterministic_solve;
   if ($clone->is_solved) {
     return 1;
@@ -332,14 +331,6 @@ sub guess_solve {
       }
     }
   }
- for my $i (3) {
-    $choices = $self->check_for_options($i);
-    if (defined $choices) {
-      if ($self->test_choices($choices)) {
-        return 1;
-      }
-    }
-  } 
 }
 
 =head1 check_for_options
@@ -424,9 +415,13 @@ sub is_solved {
 
 =head1 is_impossible
 
-  Method used during the 'guessing' phase of solve, that lets us know if
-  we have run into an 'impossible' board, which is really just a board with
-  a dupe in a row. Currently I'm not sure where this duping happens...
+  Method that tests if a board is in an impossible configuration.
+  This does three checks:
+    1. If two cells in the same row, column, or block, each have only one option
+       and the option is the same the board is impossible.
+    2. If a cell has only one option and some other cell in the row, column, or block
+       already has that value the board is impossible.
+    3. If a cell has no value and no options the board is impossible.
 
   die "Uh oh!\n" if ($board->is_impossible);
 
@@ -437,40 +432,98 @@ sub is_impossible {
 
   for (1 .. 9) {
     my $column_cells = $self->get_column_cells($_);
-    my %check;
+    my %one_options;
+    my %column_values;
     for my $cell (@$column_cells) {
       my $value = $cell->get_value;
+      my $options = $cell->get_options;
       next if (not defined $value);
-      if (exists $check{$value}) {
+      if (exists $column_values{$value}) {
+        return 1;
+      } else {
+        $column_values{$value}++;
+      }
+      if (scalar keys %$options == 1) {
+        my $option;
+        for my $i (keys %$options) {
+          $option = $i;
+        }
+        if (exists $one_options{$option}) {
+          return 1;
+        } elsif (exists $column_values{$option}) {
+          return 1;
+        } else {
+          $one_options{$option}++;
+        }
+      }
+      if (not defined $value and (scalar keys %$options == 0)) {
         return 1;
       }
-      $check{$value}++;
     }
   }
 
   for (1 .. 9) {
-    my $row_values = $self->get_row_values($_);
-    my %check;
-    for my $value (keys %$row_values) {
+    my $row_cells = $self->get_row_cells($_);
+    my %one_options;
+    my %row_values;
+    for my $cell (@$row_cells) {
+      my $value = $cell->get_value;
+      my $options = $cell->get_options;
       next if (not defined $value);
-      if (exists $check{$value}) {
+      if (exists $row_values{$value}) {
+        return 1;
+      } else {
+        $row_values{$value}++;
+      }
+      if (scalar keys %$options == 1) {
+        my $option;
+        for my $i (keys %$options) {
+          $option = $i;
+        }
+        if (exists $one_options{$option}) {
+          return 1;
+        } elsif (exists $row_values{$option}) {
+          return 1;
+        } else {
+          $one_options{$option}++;
+        }
+      }
+      if (not defined $value and (scalar keys %$options == 0)) {
         return 1;
       }
-      $check{$value}++;
     }
   }
 
   for (1 .. 9) {
     my $block = $self->{$_};
-    my %check;
+    my %block_values;
+    my %one_options;
     for my $i (keys %$block) {
       my $cell = $block->{$i};
       my $value = $cell->get_value;
+      my $options = $cell->get_options;
       next if (not defined $value);
-      if (exists $check{$value}) {
+      if (exists $block_values{$value}) {
+        return 1;
+      } else {
+        $block_values{$value}++;
+      }
+      if (scalar keys %$options == 1) {
+        my $option;
+        for my $i (keys %$options) {
+          $option = $i;
+        }
+        if (exists $one_options{$option}) {
+          return 1;
+        } elsif (exists $block_values{$option}) {
+          return 1;
+        } else {
+          $one_options{$option}++;
+        }
+      }
+      if (not defined $value and (scalar keys %$options == 0)) {
         return 1;
       }
-      $check{$value}++;
     }
   }
   return 0;
