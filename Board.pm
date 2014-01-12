@@ -221,7 +221,7 @@ sub solve {
 sub deterministic_solve {
   my $self = shift;
 
-  for (1 .. 10) {
+  for (1 .. 3) {
     $self->fill_in_options;
     $self->shuffle_down_options;
     $self->fill_only_possible;
@@ -753,21 +753,26 @@ sub get_row_cells {
 
 sub fill_in_options {
   my $self = shift;
-
-  for my $i (1 .. 9) {
-    my $block = $self->{$i};
-    for my $n (1 .. 9) {
-      my $cell = $block->{$n};
-      my $options = $cell->get_options();
-      if (scalar keys %$options == 1) {
-        my $value;
-        for (keys %$options) {
-          $value = $_;
+  
+  while (1) {
+    my $changes = 0;
+    for my $i (1 .. 9) {
+      my $block = $self->{$i};
+      for my $n (1 .. 9) {
+        my $cell = $block->{$n};
+        my $options = $cell->get_options();
+        if (scalar keys %$options == 1) {
+          my $value;
+          for (keys %$options) {
+            $value = $_;
+          }
+          $cell->set_value($value);
+          $changes++;
+          $self->shuffle_down_options;
         }
-        $cell->set_value($value);
-        $self->shuffle_down_options;
       }
     }
+    return if ($changes == 0);
   }
 }
 
@@ -787,85 +792,92 @@ sub fill_in_options {
 sub fill_only_possible {
   my $self = shift;
 
-  $self->shuffle_down_options;
-  for (1 .. 9) {
-    my $column_option;
-    my $column_blacklist;
-    my $column_cells = $self->get_column_cells($_);
-    for my $cell (@$column_cells) {
-      my $options = $cell->get_options;
-      for my $option (keys %$options) {
-        next if (exists $column_blacklist->{$option});
-        if (exists $column_option->{$option}) {
-          delete $column_option->{$option};
-          $column_blacklist->{$option} = 1;
-        } else {
-          $column_option->{$option} = $cell;
+  while (1) {
+    my $changes = 0;
+    $self->shuffle_down_options;
+    for (1 .. 9) {
+      my $column_option;
+      my $column_blacklist;
+      my $column_cells = $self->get_column_cells($_);
+      for my $cell (@$column_cells) {
+        my $options = $cell->get_options;
+        for my $option (keys %$options) {
+          next if (exists $column_blacklist->{$option});
+          if (exists $column_option->{$option}) {
+            delete $column_option->{$option};
+            $column_blacklist->{$option} = 1;
+          } else {
+            $column_option->{$option} = $cell;
+          }
+        }
+      }
+  
+      if (defined $column_option) {
+        for my $value (keys %$column_option) {
+          my $cell = $column_option->{$value};
+          $cell->set_value($value);
+          $changes++;
+          $self->shuffle_down_options;
         }
       }
     }
-
-    if (defined $column_option) {
-      for my $value (keys %$column_option) {
-        my $cell = $column_option->{$value};
-        $cell->set_value($value);
-        $self->shuffle_down_options;
+  
+    $self->shuffle_down_options;
+    for (1 .. 9) {
+      my $block_option;
+      my $block_blacklist;
+      my $block = $self->{$_};
+      for my $i (keys %$block) {
+        my $cell = $block->{$i};
+        my $options = $cell->get_options;
+        for my $option (keys %$options) {
+          next if (exists $block_blacklist->{$option});
+          if (exists $block_option->{$option}) {
+            delete $block_option->{$option};
+            $block_blacklist->{$option} = 1;
+          } else {
+            $block_option->{$option} = $cell;
+          }
+        }
       }
-    }
-  }
-
-  $self->shuffle_down_options;
-  for (1 .. 9) {
-    my $block_option;
-    my $block_blacklist;
-    my $block = $self->{$_};
-    for my $i (keys %$block) {
-      my $cell = $block->{$i};
-      my $options = $cell->get_options;
-      for my $option (keys %$options) {
-        next if (exists $block_blacklist->{$option});
-        if (exists $block_option->{$option}) {
-          delete $block_option->{$option};
-          $block_blacklist->{$option} = 1;
-        } else {
-          $block_option->{$option} = $cell;
+      if (defined $block_option) {
+        for my $value (keys %$block_option) {
+          my $cell = $block_option->{$value};
+          $cell->set_value($value);
+          $changes++;
+          $self->shuffle_down_options;
+        }
+      }
+    } 
+  
+    $self->shuffle_down_options;
+    for (1 .. 9) {
+      my $row_option;
+      my $row_blacklist;
+      my $row_cells = $self->get_row_cells($_);
+      for my $cell (@$row_cells) {
+        my $options = $cell->get_options;
+        for my $option (keys %$options) {
+          next if (exists $row_blacklist->{$option});
+          if (exists $row_option->{$option}) {
+            delete $row_option->{$option};
+            $row_blacklist->{$option} = 1;
+          } else {
+            $row_option->{$option} = $cell;
+          }
+        }
+      }
+  
+      if (defined $row_option) {
+        for my $value (keys %$row_option) {
+          my $cell = $row_option->{$value};
+          $cell->set_value($value);
+          $changes++;
+          $self->shuffle_down_options;
         }
       }
     }
-    if (defined $block_option) {
-      for my $value (keys %$block_option) {
-        my $cell = $block_option->{$value};
-        $cell->set_value($value);
-        $self->shuffle_down_options;
-      }
-    }
-  } 
-
-  $self->shuffle_down_options;
-  for (1 .. 9) {
-    my $row_option;
-    my $row_blacklist;
-    my $row_cells = $self->get_row_cells($_);
-    for my $cell (@$row_cells) {
-      my $options = $cell->get_options;
-      for my $option (keys %$options) {
-        next if (exists $row_blacklist->{$option});
-        if (exists $row_option->{$option}) {
-          delete $row_option->{$option};
-          $row_blacklist->{$option} = 1;
-        } else {
-          $row_option->{$option} = $cell;
-        }
-      }
-    }
-
-    if (defined $row_option) {
-      for my $value (keys %$row_option) {
-        my $cell = $row_option->{$value};
-        $cell->set_value($value);
-        $self->shuffle_down_options;
-      }
-    }
+    return if ($changes == 0);
   }
 }
 
