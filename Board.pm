@@ -198,6 +198,7 @@ sub solve {
       $self->display;
       exit;
     }
+
     $self->guess_solve();
     if ($self->is_impossible) {
       die "Something went wrong. Impossible board\n";
@@ -225,6 +226,8 @@ sub deterministic_solve {
     $self->fill_in_options;
     $self->shuffle_down_options;
     $self->fill_only_possible;
+    $self->shuffle_down_options;
+    $self->disjoint_pair_elimination;
     $self->shuffle_down_options;
     if ($self->is_solved) {
       return;
@@ -773,6 +776,119 @@ sub fill_in_options {
       }
     }
     return if ($changes == 0);
+  }
+}
+
+=head1 disjoing_pair_elimination
+
+  Complicated, gigantic method that may not even work currently.
+
+  The idea is this: Go by row, column, and cell.
+  If two cells share a pair of options (ex 2 and 6) and no other cell
+  contains either of those options, the only options avaible for our first two
+  cells are, in our example, 2 or 6.
+
+  EX: If two cells have the options 2,3,4,7 and 3,5,7,9 our possible pair is 3,7.
+      If no other cells contain a 2 or 7, the we can reduce those cells to 3,7 and 3,7.
+
+  $board->disjoint_pair_elimination;
+
+=cut
+
+sub disjoint_pair_elimination {
+  my $self = shift;
+
+  for my $type ('column', 'row', 'block') {
+   for (1 .. 9) {
+     my $pairs;
+     my $pair_blacklist;
+     my $numbers_in_pairs;
+     my $cells;
+     if ($type eq 'column') {
+       $cells = $self->get_column_cells($_);
+     } elsif ($type eq 'row') {
+       $cells = $self->get_row_cells($_);
+     } elsif ($type eq 'block') {
+       my $block = $self->{$_};
+       for my $cell_num (1 .. 9) {
+         push @$cells, $block->get_cell($cell_num);
+       }
+     }
+     for my $cell (@$cells) {
+       my $options = $cell->get_options;
+       next if (not defined $options);
+       for my $option_1 (keys %$options) {
+         next if (exists $pair_blacklist->{$option_1});
+         for my $option_2 (keys %$options) {
+           next if (exists $pair_blacklist->{$option_2});
+           next if ($option_2 == $option_1);
+           my $pair_key;
+           if ($option_1 < $option_2) {
+             $pair_key = "$option_1-$option_2";
+           } else {
+             $pair_key = "$option_2-$option_1";
+           }
+           if (exists $numbers_in_pairs->{$option_1}) {
+             for my $key (keys %$pairs) {
+               my $pair = $pairs->{$key}{pair};
+               for my $number (@$pair) {
+                 if ($number == $option_1) {
+                   $pairs->{$pair_key} = {};
+                   $pair_blacklist->{$number}++;
+                 }   
+               }   
+             }
+             next;   
+           }
+ 
+           if (exists $numbers_in_pairs->{$option_2}) {
+             for my $key (keys %$pairs) {
+               my $pair = $pairs->{$key}{pair};
+               for my $number (@$pair) {
+                 if ($number == $option_2) {
+                   $pairs->{$pair_key} = {};
+                   $pair_blacklist->{$number}++;
+                 }   
+               }   
+             }
+             next;   
+           }   
+ 
+           if (not defined $pairs->{$pair_key}) {
+             $pairs->{$pair_key}{cell_1} = $cell;
+             $pairs->{$pair_key}{pair} = [$option_1,$option_2];
+           } elsif (defined $pairs->{$pair_key}{cell_1} and (not defined $pairs->{$pair_key}{cell_2})) {
+             $numbers_in_pairs->{$option_1}++;
+             $numbers_in_pairs->{$option_2}++;
+             next if ($pairs->{$pair_key}{cell_1} == $cell);
+             $pairs->{$pair_key}{cell_2} = $cell;
+           } else {
+             $pairs->{$pair_key} = {};
+             $pair_blacklist->{$option_1}++;
+             $pair_blacklist->{$option_2}++;
+           }  
+         }
+       }
+     }
+     for my $pair (keys %$pairs) {
+       next unless (defined $pairs->{$pair}{cell_1} and defined $pairs->{$pair}{cell_2});
+       my $numbers = $pair->{$pair}{pair};
+       my $number_1 = $numbers->[0];
+       my $number_2 = $numbers->[1];
+       my $cell_1 = $pair->{$pair}{cell_1};
+       my $cell_2 = $pair->{$pair}{cell_2};
+       my $cells = [$cell_1, $cell_2];
+ 
+       for my $cell (@$cells) {
+         my $options = $cell->get_options;
+         for my $option (keys %$options) {
+           if (($option != $number_1) and ($option != $number_2)) {
+             $cell->remove_option($option);
+           }
+         }
+       }
+     }
+   }
   }
 }
 
