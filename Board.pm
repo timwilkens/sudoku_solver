@@ -199,7 +199,7 @@ sub solve {
       exit;
     }
 
-    $self->guess_solve();
+    $self->guess_solve(1);
     if ($self->is_impossible) {
       die "Something went wrong. Impossible board\n";
     }
@@ -227,8 +227,8 @@ sub deterministic_solve {
     $self->shuffle_down_options;
     $self->fill_only_possible;
     $self->shuffle_down_options;
-    $self->disjoint_pair_elimination;
-    $self->shuffle_down_options;
+    #$self->disjoint_pair_elimination;
+    #$self->shuffle_down_options;
     if ($self->is_solved) {
       return;
     }
@@ -258,21 +258,26 @@ sub deterministic_solve {
 =cut
 
 sub test_guess {
-  my ($self, $block, $cell_number, $value) = @_;
+  my ($self, $block, $cell_number, $value,$depth) = @_;
   return 1 if ($self->is_solved);
-  return if ($self->is_impossible);
+  return 0 if ($self->is_impossible);
 
   my $clone = $self->clone();
   my $cell = $clone->{$block}{$cell_number};
   $cell->set_value($value);
-  return if ($clone->is_impossible);
+  return 0 if ($clone->is_impossible);
   $clone->display;
 
   $clone->deterministic_solve;
   if ($clone->is_solved) {
     return 1;
-  } 
-  return $clone->guess_solve;
+  }
+
+  if ($depth > 0) {
+    return $clone->guess_solve($depth - 1);
+  } else {
+    return 0;
+  }
 }
 
 =head1 test_choices 
@@ -290,19 +295,26 @@ sub test_guess {
 =cut
 
 sub test_choices {
-  my ($self, $choices) = @_;
+  my ($self, $choices,$depth) = @_;
+
+  my$values = $self->get_values_on_board;
+  my @sorted_keys = sort { $values->{$a} <=> $values->{$b} } keys(%$values);
  
-  if (defined $choices) {
-    for my $block (keys %$choices) {
-      for my $cell (keys %{$choices->{$block}}) {
-        for my $value (keys %{$choices->{$block}{$cell}}) {
-          if ($self->test_guess($block, $cell, $value)) {
-            $self->{$block}{$cell}->set_value($value);
-            return 1;
+  while (1) {
+    if (defined $choices) {
+      for my $block (keys %$choices) {
+        for my $cell (keys %{$choices->{$block}}) {
+          for my $value (keys %{$choices->{$block}{$cell}}) {
+            next unless ($value == $sorted_keys[0] or $value == $sorted_keys[1] or $value == $sorted_keys[2]);
+            if ($self->test_guess($block,$cell,$value,$depth)) {
+              $self->{$block}{$cell}->set_value($value);
+              return 1;
+            }
           }
         }
       }
     }
+    $depth++;
   }
 }
 
@@ -319,17 +331,17 @@ sub test_choices {
   
 
 sub guess_solve {
-  my $self = shift;
+  my ($self,$depth) = @_;
   return 1 if ($self->is_solved);
   return if ($self->is_impossible);
 
   $self->deterministic_solve;
 
   my $choices;
-  for my $i (2) {
+  for my $i (3) {
     $choices = $self->check_for_options($i);
     if (defined $choices) {
-      if ($self->test_choices($choices)) {
+      if ($self->test_choices($choices,$depth)) {
         return 1;
       }
     }
@@ -857,7 +869,7 @@ sub disjoint_pair_elimination {
            if (not defined $pairs->{$pair_key}) {
              $pairs->{$pair_key}{cell_1} = $cell;
              $pairs->{$pair_key}{pair} = [$option_1,$option_2];
-           } elsif (defined $pairs->{$pair_key}{cell_1} and (not defined $pairs->{$pair_key}{cell_2})) {
+           } elsif ((defined $pairs->{$pair_key}{cell_1}) and (not exists $pairs->{$pair_key}{cell_2})) {
              $numbers_in_pairs->{$option_1}++;
              $numbers_in_pairs->{$option_2}++;
              next if ($pairs->{$pair_key}{cell_1} == $cell);
@@ -993,6 +1005,33 @@ sub fill_only_possible {
     return if ($changes == 0);
   }
 }
+
+=head1 get_values_on_board
+  
+  Method that returns the total number of each value on the board.
+
+  my $values = $self->get_values_on_board;
+
+=cut
+
+sub get_values_on_board {
+  my $self = shift;
+  my $values;
+  $self->display;
+
+  for (1 .. 9) {
+    my $block = $self->{$_};
+    for my $cell_number (1 .. 9) {
+      my $cell = $block->get_cell($cell_number);
+      my $value = $cell->get_value;
+      next unless (defined $value);
+      $values->{$value}++;
+    }
+  }
+  return $values;
+}
+
+    
 
 1;
 
